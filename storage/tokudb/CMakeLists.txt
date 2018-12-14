@@ -49,33 +49,31 @@ CHECK_JEMALLOC()
 
 IF(NOT LIBJEMALLOC)
   MESSAGE(WARNING "TokuDB is enabled, but jemalloc is not. This configuration is not supported")
+ELSEIF(LIBJEMALLOC STREQUAL jemalloc_pic)
+  SET(MYSQLD_STATIC_PLUGIN_LIBS ${MYSQLD_STATIC_PLUGIN_LIBS} jemalloc_pic pthread dl m CACHE INTERNAL "" FORCE)
+  UNSET(LIBJEMALLOC)
 ELSEIF(LIBJEMALLOC STREQUAL jemalloc)
   FIND_LIBRARY(LIBJEMALLOC_SO jemalloc)
   IF(NOT LIBJEMALLOC_SO)
     MESSAGE(FATAL_ERROR "jemalloc is present, but cannot be found?")
   ENDIF()
   GET_FILENAME_COMPONENT(LIBJEMALLOC_PATH ${LIBJEMALLOC_SO} REALPATH CACHE)
-ENDIF()
 
-IF(LIBJEMALLOC_PATH AND (RPM OR DEB))
-  UNSET(LIBJEMALLOC)
-  GET_DIRECTORY_PROPERTY(V DIRECTORY ${CMAKE_SOURCE_DIR} DEFINITION CPACK_RPM_tokudb-engine_PACKAGE_REQUIRES)
-  SET(CPACK_RPM_tokudb-engine_PACKAGE_REQUIRES "${V} jemalloc" PARENT_SCOPE)
-  SET(systemd_env "Environment=\"LD_PRELOAD=${LIBJEMALLOC_PATH}\"") #"
+  IF(RPM OR DEB)
+    UNSET(LIBJEMALLOC)
+    GET_DIRECTORY_PROPERTY(V DIRECTORY ${CMAKE_SOURCE_DIR} DEFINITION CPACK_RPM_tokudb-engine_PACKAGE_REQUIRES)
+    SET(CPACK_RPM_tokudb-engine_PACKAGE_REQUIRES "${V} jemalloc" PARENT_SCOPE)
+  ENDIF()
+
+  SET(systemd_env "Environment=\"LD_PRELOAD=${LIBJEMALLOC_PATH}\"")
   SET(cnf_malloc_lib "malloc-lib=${LIBJEMALLOC_PATH}")
-ELSEIF(LIBJEMALLOC_PATH)
-  SET(systemd_env "#Environment=\"LD_PRELOAD=${LIBJEMALLOC_PATH}\"") #"
-  SET(cnf_malloc_lib "#malloc-lib=${LIBJEMALLOC_PATH}")
-ELSE()
-  SET(systemd_env "#Environment=\"LD_PRELOAD=/path/to/libjemalloc.so\"") #"
-  SET(cnf_malloc_lib "#malloc-lib=/path/to/libjemalloc.so")
-ENDIF()
-CONFIGURE_FILE(tokudb.cnf.in tokudb.cnf @ONLY)
-CONFIGURE_FILE(tokudb.conf.in tokudb.conf @ONLY)
-IF(INSTALL_SYSCONFDIR)
-  INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tokudb.conf
-          DESTINATION ${INSTALL_SYSCONFDIR}/systemd/system/mariadb.service.d/
-          COMPONENT tokudb-engine)
+  CONFIGURE_FILE(tokudb.cnf.in tokudb.cnf @ONLY)
+  CONFIGURE_FILE(tokudb.conf.in tokudb.conf @ONLY)
+  IF(INSTALL_SYSCONFDIR)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tokudb.conf
+            DESTINATION ${INSTALL_SYSCONFDIR}/systemd/system/mariadb.service.d/
+            COMPONENT tokudb-engine)
+  ENDIF()
 ENDIF()
 
 MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-shadow")
